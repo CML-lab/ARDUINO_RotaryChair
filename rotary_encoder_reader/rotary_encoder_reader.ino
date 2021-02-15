@@ -90,6 +90,12 @@ void setup()
     micros_prev = micros();
     micros_trialstart = micros();
 
+    rel_pos_degrees = 0;
+    abs_pos_trialstart = abs_pos_degrees;
+    enc_pos_trialstart = enc_pos;
+    rel_pos_prev = 0;
+    rel_pos_change = 0;
+
     Serial.begin(BAUD_RATE);
 
     Serial.println("Ready to begin recording.");
@@ -162,7 +168,7 @@ void loop()
     //enc_pos_change = enc_pos - enc_pos_prev;
     //enc_pos_change = abs(enc_pos_change);
     //abs_pos_degrees = enc_pos * .00074074 * 360; //(1/1350)
-    abs_pos_degrees = enc_pos * (360.0 / REppr) * REratio; // number of pulses * (deg/pulse) * (motor rotation / encoder rotation)
+    abs_pos_degrees = -1 * enc_pos * (360.0 / REppr) * REratio; // number of pulses * (deg/pulse) * (motor rotation / encoder rotation)
 
 
     if (REenabled)

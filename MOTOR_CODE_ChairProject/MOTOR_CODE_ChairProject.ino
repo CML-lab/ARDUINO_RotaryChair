@@ -51,11 +51,15 @@
 
   ***INSTRUCTIONS***
 
-    -CONNECT "Motor Arduino" (Arduino Uno COM4) and open Tools > Serial Monitor. Once clicking this the Arduino board will
-    reboot (This can be a soft reset i.e. close Serial Monitor and open Serial Monitor to effectively RESET).
+    -CONNECT "Motor Arduino" (Arduino Uno COMX) where X is the COM port number, and open Tools > Serial Monitor. Once clicking 
+    this the Arduino board will reboot (This can be a soft reset i.e. close Serial Monitor and open Serial Monitor to effectively
+    RESET).
 
-    -Follow instructions on Serial Monitor. There is a field on top to send Serial data to the Arduino board. Click SEND
-    button once done typing in desired input command.
+    In the Serial Monitor, set the Baud rate to match the rate specified in the code (nominally 115200), and choose the option to "No Line Ending".
+    Also make suer that the "Autoscroll" and "TimeStamp" options are turned on. Close and Reopen the Serial Monitor or Clear the console if desired.
+
+    -Follow instructions on Serial Monitor. There is a field on top to send Serial data to the Arduino board. Click SEND button or hit the 'Return' key 
+    once done typing in desired input command.
 
     -When finished, click anywhere in the Serial Monitor output and ctr + A then ctr + C to copy all outputs.
 
@@ -69,10 +73,15 @@
 
     To communicate with the secondary Arduino (which is reading the rotary encoder), connect the two arduinos via the
     GND pin and one of the digital pins to act as an enable line/trigger signal. Here we use pin 12 as defined by triggerPinRE.
+    Note the Rotary Encoder does not actually receive trial number information, it counts trials independently based on
+    the number of detected triggers.
+
+    For audio, see https://www.arduino.cc/reference/en/language/functions/advanced-io/tone/
 
 */
 
 #include <AccelStepper.h>
+#include "pitches.h"
 //#include <avr/wdt.h> //for library containing watchdog
 
 // Initialize the library with number of interface pins
@@ -82,12 +91,27 @@ float movementSteps = 0;
 bool inputReceived = 0;
 float inputMove = 0;
 float oneRevSteps = 51200;
+
+//trial counter
 int trial = 1;
+
+//variables to trigger the second Arduino reading the rotary encoder
 const int triggerPinRE = 12;
 int triggerPinREState = LOW;
 
+//variables to support the rotate-pause-rotate_back paradigm
+unsigned long timeStoppedMoving = 0; //time the chair finished rotating
+const int timePause = 2000;          // time in milliseconds to pause before rotating the chair back
+int movePhase = 0;                  //keep track of whether we are moving outward or back
+
+//serial Baud rate - this must match what is selected in the Serial Monitor
 #define BAUD_RATE 115200
 //38400;
+
+//variables to support tone
+int noteDur = 1000;
+#define TONE_PIN 13
+
 
 void setup()
 {
@@ -112,12 +136,28 @@ void loop()
     delay(1000);
     inputReceived = false;  // set at zero for every iteration to pop back into the while loop
     inputMove = 0;      // set at zero to begin every iteration... also helps to make sure there are no accidental movements
+    movePhase = 0;
 
     //Get input for movement
     GetInput();
 
-    //Move to end position
-    MoveChair();
+    //Move the chair
+    if (movePhase == 1) {
+        // Move outward
+        MoveChair(inputMove);
+    }
+    else if (movePhase == 2) {
+        //pause briefly
+        delay(timePause/2); //this will work, but note it is blocking!
+        noTone(TONE_PIN);
+        tone(TONE_PIN, NOTE_E4, noteDur);
+        delay(timePause/2); //this will work, but note it is blocking!
+        movePhase = 3;
+    }
+    else if (movePhase == 3) {
+        //Move return to start
+        MoveChair(-inputMove);
+    }
 
     //Record patient output
     RecordOutput();
@@ -160,6 +200,8 @@ void GetInput() {
         while (Serial.available() == 0) {} //hold at this point in the code until user clicks SEND on Serial Monitor
         inputMove = Serial.parseInt();    //store input
 
+        //movePhase = 0;
+
         if (((inputMove >= -360) && (inputMove <= 360)) && (inputMove != 0)) {
             //Serial.print("Moving "); Serial.print(inputMove);
             //Serial.print(" degrees. Starting Position: ");
@@ -173,6 +215,11 @@ void GetInput() {
             triggerPinREState = HIGH;        //trigger a signal from the motor digital pin to the rotary encoder digital pin using digitalRead(Pin, State [HIGH, LOW])
             digitalWrite(triggerPinRE, triggerPinREState);  //Set digital pin 12 to HIGH
             inputReceived = true;
+            
+            noTone(TONE_PIN);
+            tone(TONE_PIN, NOTE_A4, noteDur);
+
+            movePhase = 1;
         }
         else {
             Serial.println("You did not enter a non-zero value between -360 and 360 degrees.");
@@ -181,12 +228,12 @@ void GetInput() {
     }
 }
 
-void MoveChair() {
+void MoveChair(float MoveAngle) {
 
 
     //Serial.print("oneRevSteps: "); Serial.println(oneRevSteps);
 
-    movementSteps = (float)(oneRevSteps * (inputMove / 360));
+    movementSteps = (float)(oneRevSteps * (MoveAngle / 360));
     Serial.print("inputMove: "); Serial.print(inputMove); Serial.println(" degrees");
     Serial.print("movementSteps: "); Serial.print(movementSteps); Serial.println(" steps");
     Serial.print("StartingPosition: "); DegreeCalculate(); Serial.println(" degrees");
@@ -198,11 +245,20 @@ void MoveChair() {
     while (stepper.distanceToGo() != 0) { //wait until movement is finished... making sure there is not skip
         stepper.run();
     }
-    if (stepper.distanceToGo() == 0) {
-        Serial.println("--- FINISHED MOVEMENT ---");
+    if (stepper.distanceToGo() == 0 && movePhase == 1) {
+        Serial.println("--- FINISHED OUTWARD MOVEMENT ---");
+        Serial.print("The current location is: "); DegreeCalculate(); Serial.println(" degrees.");
+        movePhase = 2;
+        timeStoppedMoving = micros();
+    }
+    else if (stepper.distanceToGo() == 0 && movePhase == 3) {
+        Serial.println("--- FINISHED RETURN MOVEMENT ---");
         triggerPinREState = LOW;
         digitalWrite(triggerPinRE, triggerPinREState);
         Serial.print("The current location is: "); DegreeCalculate(); Serial.println(" degrees.");
+        movePhase = 0;
+        noTone(TONE_PIN);
+        tone(TONE_PIN, NOTE_A5, noteDur);
     }
 }
 
