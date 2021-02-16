@@ -101,7 +101,7 @@ int triggerPinREState = LOW;
 
 //variables to support the rotate-pause-rotate_back paradigm
 unsigned long timeStoppedMoving = 0; //time the chair finished rotating
-const int timePause = 2000;          // time in milliseconds to pause before rotating the chair back
+const int timePause = 3000;          // time in milliseconds to pause before rotating the chair back
 int movePhase = 0;                  //keep track of whether we are moving outward or back
 
 //serial Baud rate - this must match what is selected in the Serial Monitor
@@ -109,7 +109,7 @@ int movePhase = 0;                  //keep track of whether we are moving outwar
 //38400;
 
 //variables to support tone
-int noteDur = 1000;
+int noteDur = 300;
 #define TONE_PIN 13
 
 
@@ -141,23 +141,24 @@ void loop()
     //Get input for movement
     GetInput();
 
-    //Move the chair
-    if (movePhase == 1) {
-        // Move outward
+    //Move the chair: rotate outward
+    //if (movePhase == 1) {
         MoveChair(inputMove);
-    }
-    else if (movePhase == 2) {
-        //pause briefly
+    //}
+
+    //pause at the end of the rotation and beep
+    //if (movePhase == 2) {
         delay(timePause/2); //this will work, but note it is blocking!
         noTone(TONE_PIN);
-        tone(TONE_PIN, NOTE_E4, noteDur);
+        tone(TONE_PIN, NOTE_G5, noteDur);
         delay(timePause/2); //this will work, but note it is blocking!
         movePhase = 3;
-    }
-    else if (movePhase == 3) {
-        //Move return to start
+    //}
+
+    //rotate the chair back to the home position and beep
+    //if (movePhase == 3) {
         MoveChair(-inputMove);
-    }
+    //}
 
     //Record patient output
     RecordOutput();
@@ -217,7 +218,8 @@ void GetInput() {
             inputReceived = true;
             
             noTone(TONE_PIN);
-            tone(TONE_PIN, NOTE_A4, noteDur);
+            tone(TONE_PIN, NOTE_C5, noteDur);
+            delay(500);
 
             movePhase = 1;
         }
@@ -258,7 +260,7 @@ void MoveChair(float MoveAngle) {
         Serial.print("The current location is: "); DegreeCalculate(); Serial.println(" degrees.");
         movePhase = 0;
         noTone(TONE_PIN);
-        tone(TONE_PIN, NOTE_A5, noteDur);
+        tone(TONE_PIN, NOTE_C6, noteDur);
     }
 }
 

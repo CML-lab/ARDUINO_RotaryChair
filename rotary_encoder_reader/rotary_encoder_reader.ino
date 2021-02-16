@@ -214,7 +214,7 @@ void loop()
         Serial.print("\t");
         Serial.print(bounded_trialstart, 3);
         Serial.print("\t");
-        Serial.print(abs_pos_degrees, 3);
+        Serial.print(rel_pos_degrees, 3);
         Serial.print("\t");
         Serial.print(etime);
         Serial.print("\t");
